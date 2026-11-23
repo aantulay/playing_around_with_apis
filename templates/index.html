@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width", initial-scale=1.0" />
+    <title>Global Country &amp; Demographic Explorer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+    <header>
+        <div>
+            <strong>Global Country &amp; Demographic Explorer</strong>
+            <span class="badge">Node: {{ server_id }}</span>
+        </div>
+        {% if mode == "dashboard" %}
+        <div class="header-user">
+            <span>Signed in as <strong>{{ user }}</strong> ({{ role }})</span>
+            <form method="POST" action="{{ url_for('logout_user') }}" class="logout-form">
+                <button type="submit" class="secondary logout-btn">Logout</button>
+            </form>
+        </div>
+        {% endif %}
+    </header>
+
+    <main>
+        {% if mode == "login" %}
+            <div class="card login-box">
+                <h2>Sign In</h2>
+                <p class="muted-note">Demo account: <code>analyst</code> / <code>Explore2026!</code></p>
+                {% if error %}
+                    <div class="alert-warn">{{ error }}</div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('login_page') }}">
+                    <div class="field-group">
+                        <label for="username">Username</label>
+                        <input id="username" name="username" type="text" required />
+                    </div>
+                    <div class="field-group-lg">
+                        <label for="password">Password</label>
+                        <input id="password" name="password" type="password" required />
+                    </div>
+                    <button type="submit">Sign In</button>
+                </form>
+            </div>
+        {% else %}
+            {% if warning_msg %}
+                <div class="alert-warn">{{ warning_msg }}</div>
+            {% endif %}
+
+            <div class="card">
+                <form method="GET" action="{{ url_for('dashboard') }}" class="controls">
+                    <div>
+                        <label for="q">Search (Name, Capital, Code)</label>
+                        <input id="q" name="q" type="text" value="{{ query }}" placeholder="e.g. Rwanda, Tokyo, KE" />
+                    </div>
+                    <div>
+                        <label for="region">Region</label>
+                        <select id="region" name="Region">
+                            {% for r in regions %}
+                                <option value="{{ r }}" {% if r == selected_region %}selected{% endif %}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="order">Order</label>
+                        <select id="order" name="order">
+                            <option value="asc" {% if order == "asc" %}selected{% endif %}>Ascending</option>
+                            <option value="desc" {% if order == "desc" %}selected{% endif %}>Descending</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit">Apply Filters</button>
+                    </div>
+                </form>
+                <p class="summary-line">
+                    Showing <strong>{{ shown_count }}</strong> of <strong>{{ total_count }}</strong> countries.
+                    Cache status: <strong>{{ "HIT" if cache_hit else "MISS (Refreshed)" }}</strong>.
+                    Saved favourites: <strong id="fav-count">{{ favourites|length }}</strong>. 
+                </p>
+            </div>
+
+            <div class="card table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Country</th>
+                            <th>Region</th>
+                            <th>Capital</th>
+                            <th>xPopulation</th>
+                            <th>Area (km<sup>2</sup>)</th>
+                            <th>Favourite</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in countries %}
+                            <tr>
+                                <td>
+                                    {% if c.flag %}<img src="{{ c.flag }}" alt="" class="flag" />{% endif %}
+                                    <strong>{{ c.name }}</strong> <span class="code-muted">({{ c.code }})</span>
+                                </td>
+                                <td>{{ c.region }}</td>
+                                <td>{{ c.capital }}</td>
+                                <td>{{ "{:,}".format(c.population) }}</td>
+                                <td>{{ "{:,.1f}".format(c.area) }}</td>
+                                <td>
+                                    <button type="button" class="fav-btn {% if c.name in favourites %}active{% endif %}" data-country="{{ c.name }}" onclick="toggleFav(this)">{{ "Saved" if c.name in favourites else "Save" }}</button>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="empty-row">No matching countries found.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>
