@@ -1,8 +1,8 @@
 import os
 import time
 import threading
-import functools import wraps
-import urllib.parse import quote
+from functools import wraps
+from urllib.parse import quote
 import requests
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
 
@@ -122,7 +122,7 @@ def health_check():
     resp.headers["X-Served-By"] = SERVER_ID
     return resp
 
-@app.route("/login", ,methods=["GET", "POST"])
+@app.route("/login", methods=["GET", "POST"])
 def login_page():
     error = None
     if request.method == "POST":
