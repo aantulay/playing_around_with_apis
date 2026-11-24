@@ -25,7 +25,7 @@ DEMO_USERS = {
 _CACHE_LOCK = threading.Lock()
 _CACHE_STORE = {"data": None, "expires_at": 0.0}
 _USER_PREFS = {
-    "analyst": {"favourites": ["Rwanda", "Kenya", "Japan"], "sort_by": "name"}
+    "analyst": {"favorites": ["Rwanda", "Kenya", "Japan"], "sort_by": "name"}
 }
 
 def login_required(view_func):
@@ -92,7 +92,7 @@ def fetch_countries_cached():
         return [], False, f"Unable to retrieve country data right now: {exc}"
 
 def filter_and_sort_countries(countries, query="", region="All", sort_by="name", order="asc"):
-    q_lower = query.lower
+    q_lower = query.lower()
     filtered = []
     for c in countries:
         matches_query = (
@@ -131,7 +131,7 @@ def login_page():
         user_record = DEMO_USERS.get(username)
         if user_record and user_record["password"] == password:
             session["user"] = username
-            _USER_PREFS.setdefault(username, {"favourites": [], "sort_by": "name"})
+            _USER_PREFS.setdefault(username, {"favorites": [], "sort_by": "name"})
             return redirect(url_for("dashboard"))
         error = "Invalid username or password."
     return render_template("index.html", mode="login", error=error, server_id=SERVER_ID)

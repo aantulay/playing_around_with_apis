@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width", initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Global Country &amp; Demographic Explorer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
@@ -56,7 +56,7 @@
                     </div>
                     <div>
                         <label for="region">Region</label>
-                        <select id="region" name="Region">
+                        <select id="region" name="region">
                             {% for r in regions %}
                                 <option value="{{ r }}" {% if r == selected_region %}selected{% endif %}>{{ r }}</option>
                             {% endfor %}
@@ -76,7 +76,7 @@
                 <p class="summary-line">
                     Showing <strong>{{ shown_count }}</strong> of <strong>{{ total_count }}</strong> countries.
                     Cache status: <strong>{{ "HIT" if cache_hit else "MISS (Refreshed)" }}</strong>.
-                    Saved favourites: <strong id="fav-count">{{ favourites|length }}</strong>. 
+                    Saved favorites: <strong id="fav-count">{{ favorites|length }}</strong>. 
                 </p>
             </div>
 
@@ -87,9 +87,9 @@
                             <th>Country</th>
                             <th>Region</th>
                             <th>Capital</th>
-                            <th>xPopulation</th>
+                            <th>Population</th>
                             <th>Area (km<sup>2</sup>)</th>
-                            <th>Favourite</th>
+                            <th>Favorite</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -104,7 +104,7 @@
                                 <td>{{ "{:,}".format(c.population) }}</td>
                                 <td>{{ "{:,.1f}".format(c.area) }}</td>
                                 <td>
-                                    <button type="button" class="fav-btn {% if c.name in favourites %}active{% endif %}" data-country="{{ c.name }}" onclick="toggleFav(this)">{{ "Saved" if c.name in favourites else "Save" }}</button>
+                                    <button type="button" class="fav-btn {% if c.name in favorites %}active{% endif %}" data-country="{{ c.name }}">{{ "Saved" if c.name in favorites else "Save" }}</button>
                                 </td>
                             </tr>
                         {% else %}
