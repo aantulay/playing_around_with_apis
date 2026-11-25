@@ -13,7 +13,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 SERVER_ID = os.environ.get("SERVER_ID", "Local-Dev")
-API_BASE_URL = os.environ.get("COUNTRIES_API_URL", "https://restcountries.com/countries/v5")
+API_BASE_URL = os.environ.get("COUNTRIES_API_URL", "https://api.restcountries.com/countries/v5")
 COUNTRIES_API_KEY = os.environ.get("COUNTRIES_API_KEY", "").strip()
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
 
@@ -51,33 +51,63 @@ def fetch_countries_cached():
     with _CACHE_LOCK:
         if _CACHE_STORE["data"] is not None and now < _CACHE_STORE["expires_at"]:
             return _CACHE_STORE["data"], True, None
-
-    if not COUNTRIES_API_KEY:
+        
+    api_key = os.environ.get("COUNTRIES_API_KEY", "").strip() or COUNTRIES_API_KEY
+    if not api_key:
         return [], False, "Unable to retrieve country data right now: Missing COUNTRIES_API_KEY environment variable."
 
     url = API_BASE_URL.rstrip("/")
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {COUNTRIES_API_KEY},"
+        "Authorization": f"Bearer {api_key}",
     }
 
     try:
-        resp = requests.get(url, headers=headers, timeout=8)
-        resp.raise_for_status()
-        payload = resp.json()
+        raw_items = []
+        offset = 0
+        page_size = 100
 
-        raw_items = payload.get("data") if isinstance(payload, dict) else payload
-        if not isinstance(raw_items, list):
-            detail = ""
-            if isinstance(payload, dict) and payload.get("message"):
-                detail = f": {payload.get('message')}"
-            raise ValueError(f"Unexpected API response format ({type(raw_items).__name__}){detail}")
+        while True:
+            resp = requests.get(
+                url,
+                headers=headers,
+                params={"limit": page_size, "offset": offset},
+                timeout=8
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+
+            if isinstance(payload, list):
+                page_items = payload
+                has_more = len(page_items) == page_size
+            elif isinstance(payload, dict):
+                data_obj = payload.get("data")
+                if isinstance(data_obj, dict) and isinstance(data_obj.get("objects"), list):
+                    page_items = data_obj["objects"]
+                    pag = data_obj.get("pagination") or payload.get("pagination") or {}
+                    if isinstance(pag, dict) and "has_more" in pag:
+                        has_more = bool(pag["has_more"])
+                    elif isinstance(pag, dict) and "next_offset" in pag and pag["next_offset"] is not None:
+                        has_more = True
+                    else:
+                        has_more = len(page_items) == page_size
+                elif isinstance(data_obj, list):
+                    page_items = data_obj
+                    has_more = len(page_items) == page_size
+                else:
+                    detail = f": {payload.get('message')}" if payload.get("message") else ""
+                    raise ValueError(f"Unexpected API response format ({type(payload).__name__}){detail}")
+            else:
+                raise ValueError(f"Unexpected API response format ({type(payload).__name__})")
+
+            raw_items.extend([x for x in page_items if isinstance(x, dict)])
+
+            if not has_more or not page_items or offset >= 1000:
+                break
+            offset += len(page_items)
 
         normalized = []
         for item in raw_items:
-            if not isinstance(item, dict):
-                continue
-
             name_obj = item.get("name") or item.get("names") or {}
             if isinstance(name_obj, dict):
                 common_name = sanitize_text(
@@ -86,11 +116,12 @@ def fetch_countries_cached():
             else:
                 common_name = sanitize_text(str(name_obj or "Unknown"), 100)
 
-            codes_obj = item.get("codes") or {}
+            codes_obj = item.get("codes") if isinstance(item.get("codes"), dict) else {}
             raw_code = (
                 item.get("cca2")
-                or (codes_obj.get("alpha_2") if isinstance(codes_obj, dict) else "")
-                or (codes_obj.get("alpha_3") if isinstance(codes_obj, dict) else "")
+                or codes_obj.get("alpha_2")
+                or codes_obj.get("alpha_3")
+                or ""
             )
 
             capitals = item.get("capital") or item.get("capitals") or []
@@ -103,11 +134,22 @@ def fetch_countries_cached():
             else:
                 capital_str = "N/A"
 
-            flags_obj = item.get("flags") or item.get("flag") or {}
-            if isinstance(flags_obj, dict):
-                flag_val = flags_obj.get("png") or flags_obj.get("emoji") or ""
+            flag_obj = item.get("flag") if isinstance(item.get("flag"), dict) else {}
+            flags_obj = item.get("flags") if isinstance(item.get("flags"), dict) else {}
+            if flag_obj or flags_obj:
+                flag_val = (
+                    flag_obj.get("url_png")
+                    or flag_obj.get("png")
+                    or flags_obj.get("png")
+                    or flag_obj.get("url_svg")
+                    or flags_obj.get("svg")
+                    or flag_obj.get("emoji")
+                    or flags_obj.get("emoji")
+                    or ""
+                )
             else:
-                flag_val = str(flags_obj or "")
+                raw_flag = item.get("flag") or item.get("flags") or ""
+                flag_val = str(raw_flag) if not isinstance(raw_flag, (dict, list)) else ""
 
             pop_raw = item.get("population")
             if isinstance(pop_raw, dict):
@@ -117,7 +159,12 @@ def fetch_countries_cached():
 
             area_raw = item.get("area")
             if isinstance(area_raw, dict):
-                area_val = area_raw.get("kilometres") or area_raw.get("km2") or 0.0
+                area_val = (
+                    area_raw.get("kilometers")
+                    or area_raw.get("kilometres")
+                    or area_raw.get("km2")
+                    or 0.0
+                )
             else:
                 area_val = area_raw or 0.0
 

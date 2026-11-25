@@ -197,3 +197,12 @@ img.flag {
     max-width: 400px;
     margin: 3rem auto;
 }
+
+.flag-img {
+    width: 24px;
+    height: 16px;
+    object-fit: cover;
+    vertical-align: middle;
+    margin-right: 0.4 rem;
+    border-radius: 2px;
+}
