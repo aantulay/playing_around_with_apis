@@ -1,10 +1,11 @@
 import os
+import re
 import time
 import threading
 from functools import wraps
 from urllib.parse import quote
 import requests
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+from flask import Flask, jsonify, make_response, redirect, render_template, request, session, url_for
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-in-production")
@@ -12,7 +13,8 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 SERVER_ID = os.environ.get("SERVER_ID", "Local-Dev")
-API_BASE_URL = os.environ.get("COUNTRIES_API_URL", "https://restcountries.com/v3.1")
+API_BASE_URL = os.environ.get("COUNTRIES_API_URL", "https://restcountries.com/countries/v5")
+COUNTRIES_API_KEY = os.environ.get("COUNTRIES_API_KEY", "").strip()
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
 
 DEMO_USERS = {
@@ -50,33 +52,84 @@ def fetch_countries_cached():
         if _CACHE_STORE["data"] is not None and now < _CACHE_STORE["expires_at"]:
             return _CACHE_STORE["data"], True, None
 
-    fields = "name,region,subregion,population,area,capital,cca2,flags"
-    url = f"{API_BASE_URL}/all?fields={quote(fields)}"
+    if not COUNTRIES_API_KEY:
+        return [], False, "Unable to retrieve country data right now: Missing COUNTRIES_API_KEY environment variable."
+
+    url = API_BASE_URL.rstrip("/")
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {COUNTRIES_API_KEY},"
+    }
+
     try:
-        resp = requests.get(url, timeout=8)
+        resp = requests.get(url, headers=headers, timeout=8)
         resp.raise_for_status()
-        raw_items = resp.json()
+        payload = resp.json()
+
+        raw_items = payload.get("data") if isinstance(payload, dict) else payload
         if not isinstance(raw_items, list):
-            raise ValueError("Unexpected API response format")
+            detail = ""
+            if isinstance(payload, dict) and payload.get("message"):
+                detail = f": {payload.get('message')}"
+            raise ValueError(f"Unexpected API response format ({type(raw_items).__name__}){detail}")
 
         normalized = []
         for item in raw_items:
-            name_obj = item.get("name") or {}
-            common_name = sanitize_text(name_obj.get("common", "Unknown"), 100)
-            capitals = item.get("capital") or []
-            capital_str = sanitize_text(capitals[0], 80) if capitals else "N/A"
-            flags_obj = item.get("flags") or {}
-            flag_url = sanitize_text(flags_obj.get("png", ""), 250)
+            if not isinstance(item, dict):
+                continue
+
+            name_obj = item.get("name") or item.get("names") or {}
+            if isinstance(name_obj, dict):
+                common_name = sanitize_text(
+                    name_obj.get("common") or name_obj.get("official") or "Unknown", 100
+                )
+            else:
+                common_name = sanitize_text(str(name_obj or "Unknown"), 100)
+
+            codes_obj = item.get("codes") or {}
+            raw_code = (
+                item.get("cca2")
+                or (codes_obj.get("alpha_2") if isinstance(codes_obj, dict) else "")
+                or (codes_obj.get("alpha_3") if isinstance(codes_obj, dict) else "")
+            )
+
+            capitals = item.get("capital") or item.get("capitals") or []
+            if isinstance(capitals, list) and capitals:
+                first_cap = capitals[0]
+                cap_raw = first_cap.get("name", "") if isinstance(first_cap, dict) else str(first_cap)
+                capital_str = sanitize_text(cap_raw, 80) or "N/A"
+            elif isinstance(capitals, str) and capitals.strip():
+                capital_str = sanitize_text(capitals, 80)
+            else:
+                capital_str = "N/A"
+
+            flags_obj = item.get("flags") or item.get("flag") or {}
+            if isinstance(flags_obj, dict):
+                flag_val = flags_obj.get("png") or flags_obj.get("emoji") or ""
+            else:
+                flag_val = str(flags_obj or "")
+
+            pop_raw = item.get("population")
+            if isinstance(pop_raw, dict):
+                pop_val = pop_raw.get("total") or 0
+            else:
+                pop_val = pop_raw or 0
+
+            area_raw = item.get("area")
+            if isinstance(area_raw, dict):
+                area_val = area_raw.get("kilometres") or area_raw.get("km2") or 0.0
+            else:
+                area_val = area_raw or 0.0
 
             normalized.append({
-                "code": sanitize_text(item.get("cca2", ""), 4),
+                "code": sanitize_text(str(raw_code), 4),
                 "name": common_name,
-                "region": sanitize_text(item.get("region", "Other"), 40) or "Other",
-                "subregion": sanitize_text(item.get("subregion", ""), 60),
-                "population": int(item.get("population") or 0),
-                "area": float(item.get("area") or 0.0),
+                "region": sanitize_text(str(item.get("region") or "Other"), 40) or "Other",
+                "subregion": sanitize_text(str(item.get("subregion") or ""), 60),
+                "population": int(pop_val),
+                "area": float(area_val),
                 "capital": capital_str,
-                "flag": flag_url,
+                "flag": sanitize_text(flag_val, 250),
             })
 
         with _CACHE_LOCK:
