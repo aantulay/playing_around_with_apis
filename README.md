@@ -256,3 +256,6 @@ Confirm alternating `X-Served-By: 7242-web-01` and `X-Served-By: 7242-web-02` he
 2. **Favorites Persistence Across Paginated Views:** Initially, filtering by "Favorites only" on the client side only inspected the currently loaded page. Moving the favorites filter logic to the backend ensured saved countries are accurately aggregated across the entire dataset before pagination is applied.
 3. **Flag Asset Rendering Consistency:** Different country records exposed flag URLs and emoji representations inconsistently. Standardizing fallback flag rendering in the backend payload and frontend UI prevented broken images across all regions.
 4. **Multi-Node Service Isolation & Port Routing:** Separating application processes (Gunicorn bound to `127.0.0.1:5000`) from public HTTP ingress (Nginx listening on port `80` on both backend nodes and `7242-lb-01`) eliminated port conflicts and allowed clean health checks and round-robin load balancing.
+
+## Demo Video
+https://drive.google.com/file/d/1Zpo3fxL7dHf6M7Gm0RgeQNeH0VJXU7iL/view?usp=sharing
