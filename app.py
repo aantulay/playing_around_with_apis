@@ -204,7 +204,7 @@ def filter_and_sort_countries(countries, query="", region="All", sort_by="name",
         )
         matches_region = (region == "All") or (c["region"].lower() == region.lower())
         matches_fav = (not favorites_only) or (c["name"] in fav_set)
-        if matches_query and matches_region:
+        if matches_query and matches_region and matches_fav:
             filtered.append(c)
 
     valid_sorts = {"name", "population", "area"}
