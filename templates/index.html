@@ -69,6 +69,12 @@
                         </select>
                     </div>
                     <div>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="favorites-only" name="favorites_only" value="1" {% if favorites_only %}checked{% endif %} />
+                            <span>Favorites only</span>
+                        </label>
+                    </div>
+                    <div>
                         <button type="submit">Apply Filters</button>
                     </div>
                 </form>

@@ -191,8 +191,9 @@ def fetch_countries_cached():
                 return _CACHE_STORE["data"], True, f"Live API issue ({exc}); serving cached data."
         return [], False, f"Unable to retrieve country data right now: {exc}"
 
-def filter_and_sort_countries(countries, query="", region="All", sort_by="name", order="asc"):
+def filter_and_sort_countries(countries, query="", region="All", sort_by="name", order="asc", favorites=None, favorites_only=False,):
     q_lower = query.lower()
+    fav_set = favorites or set()
     filtered = []
     for c in countries:
         matches_query = (
@@ -202,6 +203,7 @@ def filter_and_sort_countries(countries, query="", region="All", sort_by="name",
             or q_lower in c["code"].lower()
         )
         matches_region = (region == "All") or (c["region"].lower() == region.lower())
+        matches_fav = (not favorites_only) or (c["name"] in fav_set)
         if matches_query and matches_region:
             filtered.append(c)
 
@@ -254,6 +256,10 @@ def dashboard():
     if order not in ("asc", "desc"):
         order = "asc"
 
+    raw_fav_only = request.args.get("favorites_only") or request.args.get("favorites-only")
+    favorites_only = raw_fav_only in ("1", "true", "on")
+    fav_set = set(prefs.get("favorites") or [])
+
     prefs["sort_by"] = sort_by if sort_by in {"name", "population", "area"} else "name"
 
     countries, cache_hit, warning_msg = fetch_countries_cached()
@@ -261,7 +267,7 @@ def dashboard():
     if "All" not in regions:
         regions.insert(0, "All")
 
-    results = filter_and_sort_countries(countries, query=query, region=region, sort_by=sort_by, order=order)
+    results = filter_and_sort_countries(countries, query=query, region=region, sort_by=sort_by, order=order, favorites=fav_set, favorites_only=favorites_only,)
 
     resp = make_response(render_template(
         "index.html",
@@ -276,7 +282,8 @@ def dashboard():
         selected_region=region,
         sort_by=sort_by,
         order=order,
-        favorites=set(prefs.get("favorites", [])),
+        favorites_only=favorites_only,
+        favorites=fav_set,
         cache_hit=cache_hit,
         warning_msg=warning_msg,
         server_id=SERVER_ID,
